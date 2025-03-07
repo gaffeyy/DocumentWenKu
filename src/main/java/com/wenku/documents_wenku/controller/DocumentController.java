@@ -1,15 +1,22 @@
 package com.wenku.documents_wenku.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.qcloud.cos.model.COSObject;
+import com.qcloud.cos.model.COSObjectInputStream;
+import com.qcloud.cos.utils.IOUtils;
 import com.wenku.documents_wenku.common.BaseResponse;
 import com.wenku.documents_wenku.common.BusinessErrors;
 import com.wenku.documents_wenku.common.ResultUtils;
 import com.wenku.documents_wenku.exception.BusinessException;
+import com.wenku.documents_wenku.manage.CosManager;
+import com.wenku.documents_wenku.model.DocUploadRequest;
+import com.wenku.documents_wenku.model.DocVO;
 import com.wenku.documents_wenku.model.domain.Document;
 import com.wenku.documents_wenku.model.domain.User;
 import com.wenku.documents_wenku.model.request.DocumentDeleteBody;
 import com.wenku.documents_wenku.service.DocumentService;
 import com.wenku.documents_wenku.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +24,9 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.Resource;
 import javax.print.Doc;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -28,34 +38,119 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/document")
+@Slf4j
 public class DocumentController {
 	@Resource
 	private DocumentService documentService;
 
 	@Resource
 	private UserService userService;
+	@Resource
+	private CosManager cosManager;
 
+//	/**
+//	 * 文件上传接口
+//	 *
+//	 * @param request
+//	 * @param uploadDocument
+//	 * @return 文档
+//	 */
+//	@PostMapping("/upload")
+//	public BaseResponse<String> uploadDocument(HttpServletRequest request, @RequestParam("uploadDocument") MultipartFile uploadDocument){
+//		User currentUser = userService.getCurrentUser(request);
+//		if(currentUser == null){
+//			//未登录
+//			return ResultUtils.error(BusinessErrors.NOT_LOGIN);
+//		}
+//		if(uploadDocument == null){
+//			//请求参数错误
+//			throw new BusinessException(BusinessErrors.PARAMS_ERROR);
+//		}
+//		documentService.documentUpload(uploadDocument);
+//		return ResultUtils.success(null,"上传成功");
+//	}
 	/**
-	 * 文件上传接口
-	 *
-	 * @param request
-	 * @param uploadDocument
-	 * @return 文档
+	 * 上传图片（可重新上传）
 	 */
 	@PostMapping("/upload")
-	public BaseResponse<String> uploadDocument(HttpServletRequest request, @RequestParam("uploadDocument") MultipartFile uploadDocument){
-		User currentUser = userService.getCurrentUser(request);
-		if(currentUser == null){
-			//未登录
-			return ResultUtils.error(BusinessErrors.NOT_LOGIN);
-		}
-		if(uploadDocument == null){
-			//请求参数错误
-			throw new BusinessException(BusinessErrors.PARAMS_ERROR);
-		}
-		documentService.documentUpload(uploadDocument);
-		return ResultUtils.success(null,"上传成功");
+//	@AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+	public BaseResponse<DocVO> uploadPicture(
+			@RequestPart("file") MultipartFile multipartFile,
+			DocUploadRequest pictureUploadRequest,
+			HttpServletRequest request) {
+		User loginUser = userService.getCurrentUser(request);
+		DocVO docVO = documentService.uploadDoc(multipartFile, pictureUploadRequest, loginUser);
+
+		return ResultUtils.success(docVO,"");
 	}
+
+
+	/**
+	 * 测试文件上传
+	 *
+	 * @param multipartFile
+	 * @return
+	 */
+//	@AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+	@PostMapping("/test/upload")
+	public BaseResponse<String> testUploadFile(@RequestPart("file") MultipartFile multipartFile) {
+		// 文件目录
+		String filename = multipartFile.getOriginalFilename();
+		String filepath = String.format("/test/%s", filename);
+		File file = null;
+		try {
+			// 上传文件
+			file = File.createTempFile(filepath, null);
+			multipartFile.transferTo(file);
+			cosManager.putObject(filepath, file);
+			// 返回可访问地址
+			return ResultUtils.success(filepath,"success");
+		} catch (Exception e) {
+			log.error("file upload error, filepath = " + filepath, e);
+			throw new BusinessException(BusinessErrors.SYSTEM_ERROR, "上传失败");
+		} finally {
+			if (file != null) {
+				// 删除临时文件
+				boolean delete = file.delete();
+				if (!delete) {
+					log.error("file delete error, filepath = {}", filepath);
+				}
+			}
+		}
+	}
+
+	/**
+	 * 测试文件下载
+	 *
+	 * @param filepath 文件路径
+	 * @param response 响应对象
+	 */
+//	@AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+	@GetMapping("/test/download/")
+	public void testDownloadFile(String filepath, HttpServletResponse response) throws IOException {
+		COSObjectInputStream cosObjectInput = null;
+		try {
+			COSObject cosObject = cosManager.getObject(filepath);
+			cosObjectInput = cosObject.getObjectContent();
+			// 处理下载到的流
+			byte[] bytes = IOUtils.toByteArray(cosObjectInput);
+			// 设置响应头
+			response.setContentType("application/octet-stream;charset=UTF-8");
+			response.setHeader("Content-Disposition", "attachment; filename=" + filepath);
+			// 写入响应
+			response.getOutputStream().write(bytes);
+			response.getOutputStream().flush();
+		} catch (Exception e) {
+			log.error("file download error, filepath = " + filepath, e);
+			throw new BusinessException(BusinessErrors.SYSTEM_ERROR, "下载失败");
+		} finally {
+			if (cosObjectInput != null) {
+				cosObjectInput.close();
+			}
+		}
+	}
+
+
 
 	/**
 	 * 添加文档接口
@@ -214,9 +309,9 @@ public class DocumentController {
 	 * @return 推荐文档
 	 */
 	@GetMapping("/recommend")
-	public BaseResponse<List<Document>> recommendDocuemnts(HttpServletRequest request){
+	public BaseResponse<List<String>> recommendDocuments(HttpServletRequest request){
 //		List<Document> documents = documentService.recommednDocument();
-		List<Document> documents1 = documentService.redommendFromRedis();
+		List<String> documents1 = documentService.redommendFromRedis();
 		return ResultUtils.success(documents1,"查询成功");
 	}
 
@@ -226,8 +321,8 @@ public class DocumentController {
 	 * @return
 	 */
 	@GetMapping("/recomendtest")
-	public BaseResponse<List<Document>> recommendTest(HttpServletRequest request){
-				List<Document> documents = documentService.recommednDocument();
+	public BaseResponse<List<String>> recommendTest(HttpServletRequest request){
+				List<String> documents = documentService.recommednDocument();
 //		List<Document> documents1 = documentService.redommendFromRedis();
 		return ResultUtils.success(documents,"查询成功");
 	}

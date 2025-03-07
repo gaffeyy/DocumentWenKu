@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.annotation.*;
 
 import java.io.Serializable;
 import java.util.Date;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
@@ -12,6 +15,7 @@ import lombok.Data;
  */
 @TableName(value ="document")
 @Data
+//@JsonIgnoreProperties(ignoreUnknown = true)
 public class Document implements Serializable {
     /**
      * 资料id(主键)
@@ -53,6 +57,7 @@ public class Document implements Serializable {
     /**
      * 文档URL
      */
+    @JsonProperty("documentUrl")
     @TableField(value = "documentUrl")
     private String documentUrl;
 

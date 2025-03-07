@@ -2,6 +2,7 @@ package com.wenku.documents_wenku.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wenku.documents_wenku.constant.RedisConstant;
+import com.wenku.documents_wenku.job.UpdateLikeAndReadJob;
 import com.wenku.documents_wenku.model.domain.Document;
 import com.wenku.documents_wenku.service.DocumentService;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +57,7 @@ class DocumentServiceImplTest {
 	@Test
 	void searchDocumentById() {
 		long start = System.currentTimeMillis();
-		Document document = documentService.searchDocumentById(1000);
+		Document document = documentService.searchDocumentById(1);
 //		System.out.println(document);
 		long end = System.currentTimeMillis();
 		System.out.println(end - start);
@@ -77,7 +78,7 @@ class DocumentServiceImplTest {
 
 	@Test
 	void redommendFromRedis() {
-		List<Document> documents = documentService.redommendFromRedis();
+		List<String> documents = documentService.redommendFromRedis();
 		System.out.println(documents);
 	}
 
@@ -90,7 +91,7 @@ class DocumentServiceImplTest {
 		System.out.println("start");
 		RLock rLock = redissonClient.getLock("wenku:doCacheRecommendDocument:lock");
 		try{
-			List<Document> recomendList = new ArrayList<>();
+			List<String> recomendList = new ArrayList<>();
 			int size = 0;
 			if(rLock.tryLock(0,-1, TimeUnit.MILLISECONDS)){
 				Long originSize = redisTemplate.opsForList().size(RedisConstant.RECOMEND_TOP_DOCUMENT);
@@ -118,9 +119,37 @@ class DocumentServiceImplTest {
 		}
 	}
 
+	@Resource
+	private UpdateLikeAndReadJob updateLikeAndReadJob;
+
 	@Test
 	void recommednDocument() {
-		List<Document> documents = documentService.recommednDocument();
+		List<String> documents = documentService.recommednDocument();
 		System.out.println(documents);
+		updateLikeAndReadJob.updateLikeAndReadCount();
+	}
+
+	@Test
+	void searchDocumentByCategory() {
+	}
+
+	@Test
+	void documentUpload() {
+	}
+
+	@Test
+	void documentUploadToCos() {
+	}
+
+	@Test
+	void uploadDoc() {
+	}
+
+	@Test
+	void updateLandB() {
+	}
+
+	@Test
+	void getSafetyDoc() {
 	}
 }

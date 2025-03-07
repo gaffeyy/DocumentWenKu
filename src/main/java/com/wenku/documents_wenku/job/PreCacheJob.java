@@ -48,7 +48,7 @@ public class PreCacheJob {
 		log.info(Thread.currentThread().getId() + " ---- 获得缓存任务锁");
 		log.info("开始每日推荐缓存预热任务 ---- "+new Date());
 		try{
-			List<Document> recomendList = new ArrayList<>();
+			List<String> recomendList = new ArrayList<>();
 			int size = 0;
 			if(rLock.tryLock(0,-1, TimeUnit.MILLISECONDS)){
 				Long originSize = redisTemplate.opsForList().size(RedisConstant.RECOMEND_TOP_DOCUMENT);

@@ -1,8 +1,12 @@
 package com.wenku.documents_wenku.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.wenku.documents_wenku.model.DocUploadRequest;
+import com.wenku.documents_wenku.model.DocVO;
+import com.wenku.documents_wenku.model.UploadDocResult;
 import com.wenku.documents_wenku.model.domain.Document;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.wenku.documents_wenku.model.domain.User;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -80,24 +84,44 @@ public interface DocumentService extends IService<Document> {
 
 
 	/**
-	 * 上传文件
+	 * 上传文件(Ftp方式)
 	 * @param uploadDocument
 	 * @return 文件地址URL
 	 */
 	public String documentUpload(MultipartFile uploadDocument);
 
+	/**
+	 * 文件上传至Cos
+	 * @param uploadDoc
+	 * @return
+	 */
+	public String documentUploadToCos(MultipartFile uploadDoc);
+	/**
+	 * 上传图片
+	 *
+	 * @param multipartFile
+	 * @param pictureUploadRequest
+	 * @param loginUser
+	 * @return
+	 */
+	DocVO uploadDoc(MultipartFile multipartFile,
+					DocUploadRequest pictureUploadRequest,
+					User loginUser);
+
 
 	/**
 	 * 从数据库获取点赞最高的10个文档
+	 *
 	 * @return List
 	 */
-	public List<Document> recommednDocument();
+	public List<String> recommednDocument();
 
 	/**
 	 * 从Redis缓存获得推荐
+	 *
 	 * @return List
 	 */
-	public List<Document> redommendFromRedis();
+	public List<String> redommendFromRedis();
 
 	/**
 	 * 更新点赞和浏览量

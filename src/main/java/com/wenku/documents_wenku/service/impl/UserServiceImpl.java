@@ -217,6 +217,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 		String Key = RedisConstant.USER_LIKE_SET_INREDISKEY + Long.toString(documentId);
 		String HashKey = RedisConstant.DOCUMENT_COUNT_REDIS + Long.toString(documentId);
 		Long addResult = redisTemplate.opsForSet().add(Key, userId);
+		Boolean hasKey = redisTemplate.hasKey(HashKey);
+		if(!hasKey){
+			redisTemplate.opsForHash().put(HashKey,"likecount",0);
+			redisTemplate.opsForHash().put(HashKey,"readcount",0);
+		}
 		if(addResult == 0){
 			//用户已经点过赞,取消点赞
 			redisTemplate.opsForSet().remove(Key,userId);
@@ -230,6 +235,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 	@Override
 	public Long setBrowser(Long documentId, long userId) {
 		String Key = RedisConstant.DOCUMENT_COUNT_REDIS+documentId;
+		Boolean hasKey = redisTemplate.hasKey(Key);
+		if(!hasKey){
+			redisTemplate.opsForHash().put(Key,"likecount",0);
+			redisTemplate.opsForHash().put(Key,"readcount",0);
+		}
 		redisTemplate.opsForHash().increment(Key,RedisConstant.HASH_READCOUNT,1);
 		return documentId;
 	}

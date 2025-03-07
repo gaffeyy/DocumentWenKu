@@ -50,7 +50,6 @@ public class UpdateLikeAndReadJob {
 
 	@Scheduled(cron = "0 0 * * * *")  // 每小时执行一次
 
-
 	public void updateLikeAndReadCount(){
 		RLock lock = redissonClient.getLock("wenku:updateLikeAndReadCount:lock");
 		log.info(Thread.currentThread().getId() + " ---- 获得更新点赞和浏览量锁");
@@ -73,6 +72,10 @@ public class UpdateLikeAndReadJob {
 
 					DefaultRedisScript<Object> redisScript = new DefaultRedisScript<>(scriptnew,Object.class);
 					String KEYS = RedisConstant.DOCUMENT_COUNT_REDIS + id;
+					if (!redisTemplate.hasKey(KEYS)) {
+						log.error("键不存在: " + KEYS);
+						continue;
+					}
 					Object execute1 = stringRedisTemplate.execute(redisScript, Collections.singletonList(KEYS), "readcount", "likecount");
 					String str =(String) execute1;
 					String[] arr = str.split(":");

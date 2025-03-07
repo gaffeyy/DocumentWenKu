@@ -8,7 +8,13 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wenku.documents_wenku.common.BusinessErrors;
 import com.wenku.documents_wenku.constant.RedisConstant;
 import com.wenku.documents_wenku.exception.BusinessException;
+import com.wenku.documents_wenku.exception.ThrowUtils;
+import com.wenku.documents_wenku.manage.FileManager;
+import com.wenku.documents_wenku.model.DocUploadRequest;
+import com.wenku.documents_wenku.model.DocVO;
+import com.wenku.documents_wenku.model.UploadDocResult;
 import com.wenku.documents_wenku.model.domain.Document;
+import com.wenku.documents_wenku.model.domain.User;
 import com.wenku.documents_wenku.service.DocumentService;
 import com.wenku.documents_wenku.mapper.DocumentMapper;
 import com.wenku.documents_wenku.utils.FtpUtils;
@@ -21,7 +27,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
 * @author gaffey
@@ -38,6 +43,9 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
 
 	@Resource
 	private RedissonClient redissionClient;
+
+	@Resource
+	private FileManager fileManager;
 
 	@Resource
 	private RedisTemplate<String,Object> redisTemplate;
@@ -90,7 +98,11 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
 	@Override
 	public Document searchDocumentById(long documentId) {
 		QueryWrapper<Document> queryWrapper = new QueryWrapper<>();
+<<<<<<< HEAD
+		queryWrapper.select("documentName","documentUrl","likes","browser");
+=======
 		queryWrapper.select("documentName","documentUrl","uploadUser");
+>>>>>>> c2dbf2786ab223221577c80d49a3ad1bab0ee4da
 		queryWrapper.eq("documentId",documentId);
 		Document selectedDocument = documentMapper.selectOne(queryWrapper);
 		if(selectedDocument == null){
@@ -148,20 +160,75 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
 	}
 
 	@Override
-	public List<Document> recommednDocument() {
-		List<Document> documents = documentMapper.selectTopTenDocument();
-		return documents.stream().map(this::getSafetyDoc).collect(Collectors.toList());
+	public String documentUploadToCos(MultipartFile uploadDoc) {
+
+		return null;
 	}
 
 	@Override
-	public List<Document> redommendFromRedis() {
+	public DocVO uploadDoc(MultipartFile multipartFile, DocUploadRequest pictureUploadRequest, User loginUser) {
+		ThrowUtils.throwIf(loginUser == null, BusinessErrors.SYSTEM_ERROR);
+		// 用于判断是新增还是更新
+		Long docId = null;
+		if (pictureUploadRequest != null) {
+			docId = pictureUploadRequest.getId();
+		}
+
+		if(docId != null){
+			Document document = documentMapper.selectById(docId);
+			ThrowUtils.throwIf(document==null, BusinessErrors.NULL_ERROR, "图片不存在");
+		}
+		// 上传图片，得到信息
+		// 按照用户 id 划分目录
+		String uploadPathPrefix = String.format("doc/%s", loginUser.getId());
+		UploadDocResult uploadDocResult = fileManager.uploadDoc(multipartFile, uploadPathPrefix);
+		// 构造要入库的文档信息
+		Document document = new Document();
+//		document.setDocumentId(0L);
+		document.setDocumentName(uploadDocResult.getDocName());
+		document.setCategory("");
+		document.setUploadUserId(loginUser.getId());
+		document.setUploadTime(new Date());
+		document.setIsDelete(0);
+		document.setDocumentUrl(uploadDocResult.getUrl());
+		document.setTags("");
+		document.setLikes(0L);
+		document.setBrowser(0L);
+
+		int insert = documentMapper.insert(document);
+		ThrowUtils.throwIf(insert == 0, BusinessErrors.NULL_ERROR, "图片上传失败");
+		DocVO docVO = new DocVO();
+		docVO.setId(document.getDocumentId());
+		docVO.setUrl(document.getDocumentUrl());
+		docVO.setName(document.getDocumentName());
+		docVO.setUserId(loginUser.getId());
+		docVO.setCreateTime(new Date());
+
+		return docVO;
+	}
+
+
+	@Override
+	public List<String> recommednDocument() {
+		List<Document> documents = documentMapper.selectTopTenDocument();
+		List<String> docUrls = new ArrayList<>();
+		for(Document document : documents){
+			docUrls.add(document.getDocumentUrl());
+		}
+		return docUrls;
+//		return documents.stream().map(this::getSafetyDoc).collect(Collectors.toList());
+	}
+
+	@Override
+	public List<String> redommendFromRedis() {
 //		RList<Document> list = redissionClient.getList(RedisConstant.RECOMEND_TOP_DOCUMENT);
 		List<Object> objectList = redisTemplate.opsForList().range(RedisConstant.RECOMEND_TOP_DOCUMENT, 0, 10);
-		List<Document> list = new ArrayList<>();
+		List<String> list = new ArrayList<>();
 		for(Object obj : objectList){
-			list.add((Document) obj);
+			list.add((String) obj);
 		}
-		return 	list.stream().map(this::getSafetyDoc).collect(Collectors.toList());
+		return list;
+//		return 	list.stream().map(this::getSafetyDoc).collect(Collectors.toList());
 	}
 
 	@Override

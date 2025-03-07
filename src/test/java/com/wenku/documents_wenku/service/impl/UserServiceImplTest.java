@@ -63,7 +63,7 @@ class UserServiceImplTest {
 	}
 	@Test
 	public void testRedis(){
-		List<Document> documents = documentService.recommednDocument();
+		List<String> documents = documentService.recommednDocument();
 
 //		redisTemplate.opsForList().set(RedisConstant.RECOMEND_TOP_DOCUMENT,0,document);
 		int size = documents.size();
